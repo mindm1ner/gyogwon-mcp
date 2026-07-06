@@ -4,11 +4,15 @@
 # 전송: Streamable HTTP · 무상태. 로컬 실행:  python mcp_server.py  → http://localhost:8000/mcp
 # 의존: pip install "mcp[cli]"  (법령 조회는 파이썬 표준 urllib 사용, 추가 의존 없음)
 import os
+import re
+import math
 import json
 import urllib.parse
 import urllib.request
 from typing import Optional
 from mcp.server.fastmcp import FastMCP
+
+HERE = os.path.dirname(os.path.abspath(__file__))
 
 mcp = FastMCP(
     "gyogwonjigi-teacher-rights",
@@ -330,6 +334,241 @@ def guide_complaint_response(situation: str = "") -> str:
         "\"민원은 학교 민원대응팀을 통해 정식으로 접수·답변드립니다. 욕설·협박이 계속되면 통화를 종료하겠습니다. "
         "교육활동을 침해하는 내용은 관련 절차에 따라 처리됩니다.\"",
     ]
+    return "\n".join(out) + DISCLAIMER
+
+
+# ─────────────────────────────────────────────────────────────
+# 도구 7) 생활지도 상황별 근거 검색 (RAG — 교육부·교육청 매뉴얼 + 생활지도 고시)
+# ─────────────────────────────────────────────────────────────
+def _tokenize(text: str):
+    """한국어: 단어 + 글자 bigram, 영숫자: 단어. (경량 BM25용)"""
+    toks = re.findall(r"[가-힣]+|[a-z0-9]+", text.lower())
+    out = []
+    for t in toks:
+        if "가" <= t[0] <= "힣":
+            out.append(t)
+            if len(t) > 2:
+                out += [t[i:i + 2] for i in range(len(t) - 1)]
+        else:
+            out.append(t)
+    return out
+
+
+def _load_corpus():
+    try:
+        with open(os.path.join(HERE, "corpus.json"), encoding="utf-8") as f:
+            return json.load(f)
+    except Exception:
+        return []
+
+
+CORPUS = _load_corpus()
+_DOC_TOKENS = [_tokenize(c["text"]) for c in CORPUS]
+_N = len(CORPUS)
+_AVGDL = (sum(len(d) for d in _DOC_TOKENS) / _N) if _N else 0.0
+_DF = {}
+for _d in _DOC_TOKENS:
+    for _w in set(_d):
+        _DF[_w] = _DF.get(_w, 0) + 1
+_IDF = {w: math.log(1 + (_N - df + 0.5) / (df + 0.5)) for w, df in _DF.items()}
+_TF = [{} for _ in _DOC_TOKENS]
+for _i, _d in enumerate(_DOC_TOKENS):
+    for _w in _d:
+        _TF[_i][_w] = _TF[_i].get(_w, 0) + 1
+
+
+def _bm25(query: str, topk: int = 4, k1: float = 1.5, b: float = 0.75):
+    q = _tokenize(query)
+    scored = []
+    for i in range(_N):
+        dl = len(_DOC_TOKENS[i])
+        tf = _TF[i]
+        s = 0.0
+        for w in q:
+            f = tf.get(w)
+            if f:
+                s += _IDF.get(w, 0) * (f * (k1 + 1)) / (f + k1 * (1 - b + b * dl / _AVGDL))
+        if s > 0:
+            scored.append((s, i))
+    scored.sort(reverse=True)
+    return [CORPUS[i] for _, i in scored[:topk]]
+
+
+@mcp.tool(annotations={"title": "생활지도 상황별 근거 검색", "readOnlyHint": True})
+def guide_student_guidance(situation: str = "") -> str:
+    """For a described student-guidance situation, retrieve the most relevant
+    passages from Korea's Ministry of Education / provincial education office
+    manuals and the official student-guidance notice, so the assistant can give
+    a grounded, cited answer on how to guide the student within lawful bounds.
+
+    Args:
+        situation: The situation a teacher faces, e.g. "수업 중 자는 학생을 어떻게 지도하나".
+    """
+    if not situation.strip():
+        return "상황을 알려주세요. 예: '수업 중 휴대폰을 계속 보는 학생을 어떻게 지도하나요?'"
+    hits = _bm25(situation, topk=4)
+    if not hits:
+        return ("관련 문서 조각을 찾지 못했어요. 상황·학생 행동·이미 시도한 지도를 더 구체적으로 적어 주세요.") + DISCLAIMER
+    out = [f"📚 **'{situation}' — 관련 근거(교육부·교육청 매뉴얼·생활지도 고시)**", ""]
+    for h in hits:
+        src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
+        out.append(f"**〔{src}〕**\n{h['text']}")
+        out.append("")
+    out.append("↑ 위 근거로 단계적 지도(조언→주의→훈육→훈계→분리 등)와 정당한 범위를 안내하세요. "
+               "정당한 생활지도는 아동학대로 보지 않아요(→ `defend_child_abuse`).")
+    return "\n".join(out) + DISCLAIMER
+
+
+# ─────────────────────────────────────────────────────────────
+# 도구 8) 지도단계 적법성 체커 (실시간 방어 — 행동)
+# 「교원의 학생생활지도에 관한 고시」 사다리: 조언(9)→상담(10)→주의(11)→훈육(12)→훈계(13)
+# ─────────────────────────────────────────────────────────────
+_LADDER = ["제9조 조언", "제10조 상담", "제11조 주의", "제12조 훈육", "제13조 훈계"]
+
+# 자주 하려는 조치 → (사다리 index, 한 줄 판정, [요건·경고 목록])
+_ACTION_RULES = [
+    (("성찰문", "반성문", "반성", "성찰"), 4,
+     "성찰문(성찰하는 글쓰기)은 **제13조 훈계**의 과제예요.",
+     ["전제: 조언·상담·주의·훈육을 거쳤는데도 개선이 없을 때만 가능(고시 제13조①).",
+      "훈계 시 **사유와 개선방안을 함께 제시**해야 해요(제13조②).",
+      "수업시간이 아닌 때에, 학칙 근거로.",
+      "⚠️ 앞 단계 없이 바로 성찰문을 시키면 '정서학대' 근거로 쓰일 수 있어요."]),
+    (("휴대폰", "스마트기기", "핸드폰", "폰", "기기"), 2,
+     "수업 중 스마트기기 사용 제한은 **제11조 주의②**로 가능해요.",
+     ["주의로 사용 제한 → 불응·위험 소지 의심 시 제12조 훈육④로 필요범위 내 보관.",
+      "보관 절차: 주의 → 물품 보관 → 학교장 보고 → **보호자에게 인계**(학생에게 임의 처분 X).",
+      "⚠️ 교과 수업시간 녹음은 개인정보·형사 위험. 증거는 원본 보존, 불리해도 삭제 금지."]),
+    (("압수", "수거", "보관", "빼앗"), 3,
+     "물품 보관·제한은 **제11조 주의 → 제12조 훈육④**(위험물품, 필요범위 내).",
+     ["합리적 이유(위해 우려)가 있어야 하고, 보관 후 **학교장 보고 + 보호자 인계**.",
+      "학생에게 임의로 처분·폐기하면 안 돼요."]),
+    (("세워", "서있", "손 들", "교실 뒤", "벌"), 3,
+     "특정 과업·지시는 **제12조 훈육**이에요.",
+     ["인권 존중 + 법령·학칙 범위 내, 최소한도.",
+      "⚠️ 신체적 고통·건강에 해가 되는 방식은 금지(체벌 금지)."]),
+    (("청소", "원상복구"), 4,
+     "청소·원상복구는 **제13조 훈계**의 과제예요(훼손 시설·물품 대상).",
+     ["전제: 앞 단계(조언~훈육)를 거침 + 사유·개선방안 함께 제시."]),
+    (("분리", "내보", "교실 밖", "제지"), 3,
+     "수업 방해 학생 분리·제지는 **제12조 훈육**(+ 법 제20조의2 긴급 제지).",
+     ["긴급 제지는 위험 상황에서 최소한도로. 분리 시 학생 학습권 보장.",
+      "정당한 분리에 불응해 방해하면 제16조로 교육활동 침해 조치 가능."]),
+]
+
+_FOLLOWUP = ("\n📝 **필수 후속기록**: ①지도 일시·내용·거친 단계를 그날 바로 기록 "
+             "②학교장 보고 ③학부모 통보. (블로그·매뉴얼: 통보·보고 누락이 절차 위반·기소 사유가 됩니다.)")
+
+
+@mcp.tool(annotations={"title": "지도단계 적법성 체커", "readOnlyHint": True})
+def check_guidance_legality(intended_action: str = "", steps_taken: str = "") -> str:
+    """Check whether a teacher's intended guidance measure follows the lawful
+    escalation ladder of Korea's student-guidance notice (조언→상담→주의→훈육→훈계),
+    warn about prosecution risk from skipping steps, and list the mandatory
+    follow-up records. Real-time defense before acting.
+
+    Args:
+        intended_action: What the teacher intends to do, e.g. "반성문 쓰게 하려고요", "휴대폰 걷기".
+        steps_taken: Steps already taken (조언/상담/주의/훈육), optional.
+    """
+    if not intended_action.strip():
+        return ("하려는 조치를 알려주세요. 예: '반성문 쓰게 하려고요' / '휴대폰 걷으려고요'.\n"
+                "생활지도 사다리: " + " → ".join(_LADDER)) + DISCLAIMER
+    a = intended_action
+    rule = next((r for r in _ACTION_RULES if any(k in a for k in r[0])), None)
+    out = [f"🧭 **'{intended_action}' — 적법성 체크**", ""]
+    if rule:
+        _, idx, verdict, reqs = rule
+        out.append(verdict)
+        prior = _LADDER[:idx]
+        if prior:
+            out.append(f"\n**앞 단계(먼저 거쳐야 함)**: {' → '.join(prior)}")
+            if steps_taken.strip():
+                out.append(f"거친 단계로 적어주신 것: {steps_taken}")
+            else:
+                out.append("⚠️ 앞 단계를 거쳤는지 확인하세요 — 건너뛰면 정당성이 약해져요.")
+        out.append("\n**요건·주의**")
+        out += [f"- {x}" for x in reqs]
+    else:
+        out.append("이 조치는 사전 정의 사례엔 없지만, 아래 사다리와 **관련 문서 근거**로 판단하세요.")
+        out.append("생활지도 사다리: " + " → ".join(_LADDER))
+        out.append("- 낮은 단계(조언·주의)부터 시도하고, 안 되면 한 단계씩 올리세요.")
+        out.append("- 모든 조치는 인권 존중 + 법령·학칙 범위 + 최소한도. 신체적 고통은 금지.")
+
+    # 어떤 조치든 관련 고시·교육청 매뉴얼 근거를 함께 검색해 붙인다(하드코딩 안 된 사례도 커버)
+    hits = _bm25(intended_action, topk=2)
+    if hits:
+        out.append("\n**📚 관련 근거(고시·교육청 매뉴얼)**")
+        for h in hits:
+            src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
+            out.append(f"〔{src}〕 {h['text'][:220]}")
+    out.append(_FOLLOWUP)
+    out.append("\n✅ 이 사다리를 지킨 정당한 생활지도는 아동학대로 보지 않아요(초중등교육법 제20조의6, → `defend_child_abuse`).")
+    return "\n".join(out) + DISCLAIMER
+
+
+# ─────────────────────────────────────────────────────────────
+# 도구 9) 학부모 대화 안전 필터 (실시간 방어 — 말)
+# ─────────────────────────────────────────────────────────────
+_PARENT_THREAT = ["아동학대", "신고", "고소", "고발", "교육청", "국민신문고", "언론", "변호사", "소송", "가만 안"]
+_PARENT_INTENT = ["의도", "일부러", "고의", "작정", "왜 그랬"]
+_PARENT_APOLOGY = ["사과", "사죄", "잘못 인정"]
+_DRAFT_EMOTION = ["힘들", "지치", "감당", "버겁", "괴롭", "스트레스", "죽겠"]
+_DRAFT_FAULT = ["죄송", "제 잘못", "제 실수", "송구", "사과드"]
+_DRAFT_ESCAPE = ["감당이 안", "포기", "못 하겠", "어쩔 수 없", "감당이 안 돼"]
+_DRAFT_PROMISE = ["해드릴게요", "약속", "보장", "책임지"]
+
+
+@mcp.tool(annotations={"title": "학부모 대화 안전 필터", "readOnlyHint": True})
+def safe_parent_message(parent_message: str = "", teacher_draft: str = "") -> str:
+    """Analyze a parent's message and/or a teacher's draft reply, then return a
+    safer, de-escalating response strategy: detect the parent's real need and any
+    threat to document, strip self-incriminating / out-of-scope phrasing from the
+    teacher's draft, and reframe toward child-safety. Real-time defense for talk.
+
+    Args:
+        parent_message: What the parent said/wrote (the message being responded to). Optional.
+        teacher_draft: The teacher's draft reply to make safe. Optional.
+    """
+    if not (parent_message.strip() or teacher_draft.strip()):
+        return ("학부모가 보낸 말과(또는) 보내려는 답장 초안을 붙여넣어 주세요.") + DISCLAIMER
+    out = []
+
+    if parent_message.strip():
+        out.append("**1. 상대(학부모) 말 분석**")
+        pm = parent_message
+        if any(k in pm for k in _PARENT_THREAT):
+            out.append("- 🚨 **위협/신고 언급 감지** → 이 메시지를 **증거로 보존**(원본 캡처·저장)하세요. "
+                       "정당한 지도에 대한 반복적 위협은 교육활동 침해(부당 간섭)가 될 수 있어요(→ `guide_response_flow`, `defend_child_abuse`).")
+        if any(k in pm for k in _PARENT_INTENT):
+            out.append("- ⚠️ **의도 추궁** → '고의였냐'는 교사가 판단·인정할 문제가 아니에요. "
+                       "\"의도는 제가 판단할 수 있는 영역이 아니에요\"로 되돌리세요.")
+        if any(k in pm for k in _PARENT_APOLOGY):
+            out.append("- ⚠️ **사과 요구** → 사실이 확인되지 않은 잘못을 인정하지 마세요. 유감 표현과 사실 인정은 구분.")
+        out.append("- 💡 **진짜 원하는 것**: 대개 처벌이 아니라 '내 아이가 학교에서 평안한 것'이에요. "
+                   "거기에 맞춰 답하면 대화가 풀려요.")
+        out.append("")
+
+    if teacher_draft.strip():
+        td = teacher_draft
+        flags = []
+        if any(k in td for k in _DRAFT_EMOTION):
+            flags.append("**교사 감정 토로**(\"힘들다·감당 안 된다\") → 공격 대상이 돼요. 빼세요.")
+        if any(k in td for k in _DRAFT_ESCAPE):
+            flags.append("**직무 회피성 표현**(\"못 하겠다·포기\") → 직무유기로 읽힐 수 있어요.")
+        if any(k in td for k in _DRAFT_FAULT):
+            flags.append("**성급한 과실 인정**(\"제 잘못·죄송\") → 사실 확인 전 인정은 불리해요. 유감 표현으로 대체.")
+        if any(k in td for k in _DRAFT_PROMISE):
+            flags.append("**과한 약속**(\"해드릴게요·책임지겠다\") → 지키기 어려운 약속은 화근. 신중히.")
+        out.append("**2. 내 초안 위험 표현**")
+        out += [f"- 🚫 {f}" for f in flags] if flags else ["- 큰 위험 표현은 안 보여요. 아래 원칙만 확인하세요."]
+        out.append("")
+
+    out.append("**3. 안전한 답장 원칙**")
+    out.append("- ✅ **아동 안전·성장 프레임**: 교사 감정이 아니라 \"○○이가 안전하고 편안하게 지내려면\"으로.")
+    out.append("- ✅ **직무 경계**: 의도 판단·진실 규명·형사 문제는 되돌리기. 교사는 '교육'만.")
+    out.append("- ✅ **사실만, 짧게, 기록 남게**(문자/메신저로).")
+    out.append("- 📩 안전 오프닝 예: \"어머니, ○○이가 학교에서 안전하고 편안하게 지내는 게 저도 가장 중요해요. "
+               "그래서 함께 봐야 할 부분을 말씀드려요…\"")
     return "\n".join(out) + DISCLAIMER
 
 
