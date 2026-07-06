@@ -518,34 +518,50 @@ _DRAFT_ESCAPE = ["감당이 안", "포기", "못 하겠", "어쩔 수 없", "감
 _DRAFT_PROMISE = ["해드릴게요", "약속", "보장", "책임지"]
 
 
-@mcp.tool(annotations={"title": "학부모 대화 안전 필터", "readOnlyHint": True})
-def safe_parent_message(parent_message: str = "", teacher_draft: str = "") -> str:
-    """Analyze a parent's message and/or a teacher's draft reply, then return a
-    safer, de-escalating response strategy: detect the parent's real need and any
-    threat to document, strip self-incriminating / out-of-scope phrasing from the
-    teacher's draft, and reframe toward child-safety. Real-time defense for talk.
+_COMPLAINT_WORDS = ["반복", "계속", "트집", "매일", "자꾸", "여러 번", "민원", "시도 때도"]
+
+
+@mcp.tool(annotations={"title": "학부모 대화 안전 도우미", "readOnlyHint": True})
+def safe_parent_message(situation: str = "", parent_message: str = "", teacher_draft: str = "") -> str:
+    """Help a teacher respond safely to a parent. Accepts ANY of: a free-text
+    situation description, the parent's verbatim message, and/or the teacher's
+    draft reply. Detects threats/tactics and the parent's real need, strips
+    self-incriminating or out-of-scope phrasing from the draft, and returns a
+    de-escalating, child-safety-framed response script. Real-time defense for talk.
 
     Args:
-        parent_message: What the parent said/wrote (the message being responded to). Optional.
+        situation: Free description of what's happening, e.g. "학부모가 전화로 계속 항의해요". Optional.
+        parent_message: The parent's exact words being responded to. Optional.
         teacher_draft: The teacher's draft reply to make safe. Optional.
     """
-    if not (parent_message.strip() or teacher_draft.strip()):
-        return ("학부모가 보낸 말과(또는) 보내려는 답장 초안을 붙여넣어 주세요.") + DISCLAIMER
+    ctx = (situation + " " + parent_message).strip()
+    if not (ctx or teacher_draft.strip()):
+        return ("상황을 설명해 주시거나(예: '학부모가 계속 트집을 잡아요'), 학부모가 보낸 말이나 "
+                "보내려는 답장 초안을 붙여넣어 주세요. 셋 중 아무거나 돼요.") + DISCLAIMER
     out = []
 
-    if parent_message.strip():
-        out.append("**1. 상대(학부모) 말 분석**")
-        pm = parent_message
-        if any(k in pm for k in _PARENT_THREAT):
-            out.append("- 🚨 **위협/신고 언급 감지** → 이 메시지를 **증거로 보존**(원본 캡처·저장)하세요. "
-                       "정당한 지도에 대한 반복적 위협은 교육활동 침해(부당 간섭)가 될 수 있어요(→ `guide_response_flow`, `defend_child_abuse`).")
-        if any(k in pm for k in _PARENT_INTENT):
+    if ctx:
+        out.append("**1. 상황·상대 말 분석**")
+        hit = False
+        if any(k in ctx for k in _PARENT_THREAT):
+            hit = True
+            out.append("- 🚨 **위협/신고 언급** → (문자·녹음이 있으면) 원본을 **증거로 보존**하세요. "
+                       "정당한 지도에 대한 반복 위협은 교육활동 침해(부당 간섭)가 될 수 있어요(→ `guide_response_flow`, `defend_child_abuse`).")
+        if any(k in ctx for k in _PARENT_INTENT):
+            hit = True
             out.append("- ⚠️ **의도 추궁** → '고의였냐'는 교사가 판단·인정할 문제가 아니에요. "
-                       "\"의도는 제가 판단할 수 있는 영역이 아니에요\"로 되돌리세요.")
-        if any(k in pm for k in _PARENT_APOLOGY):
-            out.append("- ⚠️ **사과 요구** → 사실이 확인되지 않은 잘못을 인정하지 마세요. 유감 표현과 사실 인정은 구분.")
+                       "\"의도는 제가 판단할 영역이 아니에요\"로 되돌리기.")
+        if any(k in ctx for k in _PARENT_APOLOGY):
+            hit = True
+            out.append("- ⚠️ **사과 요구** → 사실 확인 전 잘못 인정 금지. 유감 표현과 사실 인정은 구분.")
+        if any(k in ctx for k in _COMPLAINT_WORDS):
+            hit = True
+            out.append("- 🔁 **반복·악성 민원 성격** → 민원은 개인이 아닌 **학교 민원대응팀**으로 정식 접수하세요"
+                       "(→ `guide_complaint_response`). **익명이면 응대 의무가 없어요**(민원처리법).")
+        if not hit:
+            out.append("- 특정 위협·전술은 안 보여요. 아래 원칙대로 차분히 대응하면 돼요.")
         out.append("- 💡 **진짜 원하는 것**: 대개 처벌이 아니라 '내 아이가 학교에서 평안한 것'이에요. "
-                   "거기에 맞춰 답하면 대화가 풀려요.")
+                   "거기에 맞춰 답하면 풀려요.")
         out.append("")
 
     if teacher_draft.strip():
@@ -563,12 +579,19 @@ def safe_parent_message(parent_message: str = "", teacher_draft: str = "") -> st
         out += [f"- 🚫 {f}" for f in flags] if flags else ["- 큰 위험 표현은 안 보여요. 아래 원칙만 확인하세요."]
         out.append("")
 
-    out.append("**3. 안전한 답장 원칙**")
-    out.append("- ✅ **아동 안전·성장 프레임**: 교사 감정이 아니라 \"○○이가 안전하고 편안하게 지내려면\"으로.")
-    out.append("- ✅ **직무 경계**: 의도 판단·진실 규명·형사 문제는 되돌리기. 교사는 '교육'만.")
-    out.append("- ✅ **사실만, 짧게, 기록 남게**(문자/메신저로).")
-    out.append("- 📩 안전 오프닝 예: \"어머니, ○○이가 학교에서 안전하고 편안하게 지내는 게 저도 가장 중요해요. "
-               "그래서 함께 봐야 할 부분을 말씀드려요…\"")
+    # 상황 맞춤 답장 예시 (상황 설명만 줘도 나옴)
+    out.append("**3. 안전한 답장 (상황 맞춤 예시)**")
+    if any(k in ctx for k in _PARENT_THREAT):
+        out.append("- \"어머니, ○○이가 학교에서 안전하고 편안하게 지내는 게 저도 가장 중요해요. 오늘 상황은 "
+                   "사실대로 기록해 두었고, 함께 볼 부분을 말씀드릴게요.\"")
+    elif any(k in ctx for k in _COMPLAINT_WORDS):
+        out.append("- \"말씀 주신 부분은 학교 민원 절차를 통해 정식으로 접수·답변드리겠습니다. ○○이 교육과 관련된 "
+                   "상담은 언제든 가능해요.\"")
+    elif any(k in ctx for k in _PARENT_INTENT + _PARENT_APOLOGY):
+        out.append("- \"제가 의도를 판단드릴 수는 없어요. 다만 ○○이에게 필요한 교육적 지원은 함께 고민하겠습니다.\"")
+    else:
+        out.append("- \"어머니, ○○이가 안전하고 편안하게 지내는 게 저도 가장 중요해요. 그래서 함께 봐야 할 부분을 말씀드려요…\"")
+    out.append("\n**원칙**: 아동 안전·성장 프레임 / 의도 판단·진실 규명은 되돌리기 / 사실만·짧게·기록 남게(문자·메신저).")
     return "\n".join(out) + DISCLAIMER
 
 
