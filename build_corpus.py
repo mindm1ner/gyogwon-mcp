@@ -1,4 +1,4 @@
-# 교권지기 RAG 색인 빌더 (빌드 시 1회 실행 — 배포 런타임엔 불필요)
+# 교권119 RAG 색인 빌더 (빌드 시 1회 실행 — 배포 런타임엔 불필요)
 # 교육부·시도교육청 생활지도/교권 문서 + 학생생활지도 고시 → 텍스트 추출 → 조각(chunk) → corpus.json
 # 실행:  pip install pymupdf  &&  python build_corpus.py
 # (fitz/pymupdf·requests는 빌드 전용 의존. 런타임 서버는 corpus.json만 읽음)

@@ -1,4 +1,4 @@
-# 교권지기 MCP 서버 — 카카오 클라우드(PlayMCP in KC) Git 소스 빌드용
+# 교권119 MCP 서버 — 카카오 클라우드(PlayMCP in KC) Git 소스 빌드용
 # linux/amd64 대상. Streamable HTTP(:8000/mcp)로 서비스. 순수 파이썬(무거운 의존 없음).
 FROM python:3.11-slim
 

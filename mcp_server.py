@@ -1,4 +1,4 @@
-# 교권지기 (TeacherRights Guardian) MCP 서버
+# 교권119 (Teacher Rights 119) MCP 서버
 # 카카오 AGENTIC PLAYER 10 출품작 — 교육활동 침해를 당한 교사가 "지금 뭘·어떻게" 해야 하는지
 # 법 조문·교육청 매뉴얼 근거와 함께 안내하는 교권 대응 코파일럿.
 # 전송: Streamable HTTP · 무상태. 로컬 실행:  python mcp_server.py  → http://localhost:8000/mcp
@@ -15,7 +15,7 @@ from mcp.server.fastmcp import FastMCP
 HERE = os.path.dirname(os.path.abspath(__file__))
 
 mcp = FastMCP(
-    "gyogwonjigi-teacher-rights",
+    "gyogwon119-teacher-rights",
     stateless_http=True,
     host="0.0.0.0",
     port=int(os.environ.get("PORT", "8000")),
