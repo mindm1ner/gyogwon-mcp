@@ -595,5 +595,62 @@ def safe_parent_message(situation: str = "", parent_message: str = "", teacher_d
     return "\n".join(out) + DISCLAIMER
 
 
+# ─────────────────────────────────────────────────────────────
+# 도구 10) 마음 지지 (정서·생명 안전 레이어 — 상담 어투)
+# 위기 신호 시 절차를 멈추고 "당신 잘못이 아니다" + 실제 사람·기관 연결.
+# ─────────────────────────────────────────────────────────────
+_CRISIS = ["죽고 싶", "죽고싶", "사라지고 싶", "사라지고싶", "살기 싫", "살고 싶지 않",
+           "나만 없으면", "그만두고 싶", "버틸 수 없", "버틸수 없", "끝내고 싶",
+           "자해", "뛰어내리", "없어지고 싶", "다 놓고 싶", "죽어버리"]
+_DISTRESS = ["자책", "수치", "창피", "제 잘못", "내 탓", "힘들", "무섭", "두렵", "불안",
+             "외롭", "혼자", "떨려", "잠을 못", "숨이", "우울", "지쳤", "무너", "괴롭"]
+
+_CRISIS_LINES = (
+    "☎ **자살예방 상담전화 109** (24시간·무료·익명)\n"
+    "☎ **정신건강 위기상담 1577-0199**\n"
+    "☎ **교원치유지원센터 1899-9876** (선생님을 위한 상담)"
+)
+
+
+@mcp.tool(annotations={"title": "마음 지지 (상담)", "readOnlyHint": True})
+def emotional_support(feeling: str = "") -> str:
+    """Give warm, counseling-style emotional support to a teacher in distress
+    over an infringement / false report. IMPORTANT: call this FIRST — before any
+    procedural tool — whenever the teacher expresses self-blame, shame,
+    hopelessness, or crisis. It validates, says 'this is not your fault', and
+    connects the teacher to real people/hotlines. It never replaces professional
+    help; it routes to it.
+
+    Args:
+        feeling: How the teacher is feeling or what they are going through.
+    """
+    f = feeling or ""
+    # 위기 신호 → 절차 멈추고 즉시 사람·기관 연결(초단문)
+    if any(k in f for k in _CRISIS):
+        return (
+            "🕊️ 잠깐만요. 이 말씀부터 드리고 싶어요.\n\n"
+            "**지금 혼자 계시지 마세요.** 곁에 있어 줄 사람에게 지금 연락해 주세요.\n\n"
+            "지금 바로 이야기 나눌 수 있는 곳이에요:\n" + _CRISIS_LINES + "\n\n"
+            "선생님 잘못이 아니에요. 지금의 고통은 상황이 만든 거예요, 선생님이 부족해서가 아니에요.\n"
+            "이 순간을 혼자 넘기지 않으셔도 돼요. 위 번호 중 하나에 지금 전화해 주실 수 있을까요? 저도 여기 있을게요."
+        )
+    # 자책·소진 등 일반 고통 → 상담 어투 지지 + 리프레이밍 + 연결
+    if any(k in f for k in _DISTRESS) or f.strip():
+        return (
+            "🌱 여기까지 혼자 버텨오셨네요. 얼마나 힘드셨을까요.\n\n"
+            "먼저 꼭 드리고 싶은 말이 있어요 — **이건 선생님 잘못이 아니에요.** "
+            "신고·민원을 겪은 대부분의 선생님은 학대에 해당하는 일을 하지 않았어요. 오해와 상황이 만든 일이에요.\n\n"
+            "자책이 밀려올 땐, 그 말을 하는 사람이 '내 인생에서 정말 중요한 사람인가'를 떠올려 보세요. 대개는 아니에요.\n\n"
+            "혼자 두고 싶지 않아요. 선생님을 위한 곳이에요:\n"
+            "☎ **교원치유지원센터 1899-9876** — 선생님 전용 심리상담(무료)\n"
+            "· 교권침해 피해교사 모임·교원단체 상담 — 같은 일을 겪은 사람들과 함께\n"
+            "· 마음이 많이 무너질 땐 ☎ **정신건강 위기상담 1577-0199**, ☎ **자살예방 109**\n\n"
+            "오늘은 딱 하나만 해요 — 물 한 잔, 믿는 사람에게 문자 한 통. "
+            "서류·절차는 마음이 조금 가라앉은 뒤에 저와 천천히 봐요. 지금은 선생님이 먼저예요."
+        )
+    return ("지금 마음이 어떠세요? 무슨 일이 있었는지 편하게 말씀해 주세요. "
+            "천천히 들을게요. 혼자 감당하지 않으셔도 돼요.")
+
+
 if __name__ == "__main__":
     mcp.run(transport="streamable-http")
