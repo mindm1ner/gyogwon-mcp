@@ -58,7 +58,8 @@ _FLOW = [
 def guide_response_flow(current_stage: str = "", infringement_type: str = "") -> str:
     """Guide a teacher through the 6-step response process after an
     educational-activity infringement in Korea — what to do now, in order,
-    with deadlines. Emphasizes the current stage if given.
+    with deadlines. Emphasizes the current stage if given. To draft the actual
+    statement DOCUMENT (경위서/진술서/서류) use `draft_statement`, not this.
 
     Args:
         current_stage: Where the teacher is now, e.g. "방금 당함", "증거 수집 중", "신고함". Optional.
@@ -96,6 +97,10 @@ def draft_statement(
     """Draft a Korean teacher's incident statement (진술서/경위서) for an
     educational-activity infringement, structured to be recognized as a valid
     infringement (six-W factual narration with before/after context).
+    USE THIS whenever the teacher wants the DOCUMENT itself — e.g. asks to
+    "서류/신고서/경위서/진술서를 써 줘·작성해 줘·만들어 줘", or gives incident
+    details to be written up. For the overall step-by-step PROCEDURE (what to do,
+    in order) use `guide_response_flow` instead.
 
     Args:
         who: Who caused it (학생/보호자 등).
