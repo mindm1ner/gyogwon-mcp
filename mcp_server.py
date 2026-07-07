@@ -634,9 +634,12 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
     escalation ladder of Korea's student-guidance notice (조언→상담→주의→훈육→훈계),
     warn about prosecution risk from skipping steps, and list the mandatory
     follow-up records. Real-time defense before acting.
-    USE THIS for "can I do X / is X okay" about a SPECIFIC planned measure. For
-    open how-to guidance use `guide_student_guidance`; for exact statute text use
-    `search_teacher_law`.
+    USE THIS for "can I do X / is X okay" about a SPECIFIC planned measure. Call it
+    RIGHT AWAY for such "~해도 되나요?" questions even if the teacher hasn't described
+    the situation or which steps they tried — it accepts empty inputs and gives the
+    verdict first, asking for specifics only afterward. Do NOT withhold the tool to
+    ask for context first. For open how-to guidance use `guide_student_guidance`;
+    for exact statute text use `search_teacher_law`.
 
     Args:
         intended_action: What the teacher intends to do, e.g. "반성문 쓰게 하려고요", "휴대폰 걷기".
