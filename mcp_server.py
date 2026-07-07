@@ -646,8 +646,8 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
         out += [f"- {x}" for x in reqs]
         prior = _LADDER[:idx] if idx else []
         if prior:
-            gone = f" (적어주신 거친 단계: {steps_taken})" if steps_taken.strip() else " (거친 단계 확인 필요)"
-            out.append(f"- 앞 단계 {' → '.join(prior)}를 먼저 거쳐야 함{gone}.")
+            gone = f" (적어주신 거친 단계: {steps_taken})" if steps_taken.strip() else ""
+            out.append(f"- 앞 단계 {' → '.join(prior)}를 먼저 거쳐야 해요{gone}.")
 
     # [5] 호스트 AI 판단 지침 + 보수적 폴백 (미지 입력 대비의 핵심)
     out.append("\n**[호스트 AI는 위 근거·프레임워크로 판단해 안내하세요]**")
