@@ -594,6 +594,9 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
         prior = _LADDER[:idx]
         if prior:
             out.append(f"\n**앞 단계(먼저 거쳐야 함)**: {' → '.join(prior)}")
+            out.append("**왜 순서대로 해야 하나요**: 앞 단계를 건너뛰고 센 조치를 하면 "
+                       "'과했다 = 정서학대'로 몰려 아동학대 면책(초·중등교육법 제20조의6)을 잃을 수 있어요. "
+                       "순서를 밟는 것 자체가 곧 방어예요.")
             if steps_taken.strip():
                 out.append(f"거친 단계로 적어주신 것: {steps_taken}")
             else:
