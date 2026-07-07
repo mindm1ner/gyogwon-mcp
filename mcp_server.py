@@ -204,6 +204,43 @@ def _flatten_article(a: dict) -> str:
     return "\n".join(out)
 
 
+# 환각 방지 가드(응답 하단에 붙여 LLM에 "근거 밖 조문·수치 지어내지 말라"를 강제)
+GUARD = ("\n\n⚖️ 위에 제시된 조문·시행일 등 근거만 사용하세요. 제시되지 않은 조항·숫자는 "
+         "지어내지 말고 '미확인'으로 남기세요.")
+
+# 법제처 다운 대비 핵심 조문 캐시(build_law_cache.py로 생성)
+try:
+    with open(os.path.join(HERE, "law_cache.json"), encoding="utf-8") as _lf:
+        LAW_CACHE = json.load(_lf)
+except Exception:
+    LAW_CACHE = {}
+
+
+def _cache_lookup(law_name):
+    for k, v in LAW_CACHE.items():
+        if k in law_name or law_name in k or (law_name in (v.get("name") or "")):
+            return v
+    return None
+
+
+def _cache_answer(law_name, article_no):
+    """실시간 조회 실패 시 캐시본으로 답(없으면 None)."""
+    v = _cache_lookup(law_name)
+    if not v:
+        return None
+    e = v.get("efYd", "")
+    head = (f"📖 **{v.get('name', law_name)}** (시행 {e[:4]}-{e[4:6]}-{e[6:]}) — "
+            "⚠️ 실시간 조회 실패로 **캐시본**을 보여드려요(최신본은 law.go.kr에서 확인).")
+    arts = v.get("articles", {})
+    if not article_no:
+        return head + "\n\n캐시된 조문: " + ", ".join(f"제{a}조" for a in arts)
+    key = article_no.replace("제", "").replace("조", "").strip()
+    a = arts.get(key)
+    if not a:
+        return head + f"\n\n제{key}조는 캐시에 없어요. 실시간 조회를 다시 시도해 주세요."
+    return head + f"\n\n**제{key}조({a.get('title','')})**\n\n" + a.get("text", "")
+
+
 @mcp.tool(annotations={"title": "교권 법령 조항 조회", "readOnlyHint": True})
 def search_teacher_law(law_name: str = "교원지위법", article_no: str = "") -> str:
     """Look up a current Korean statute article relevant to teachers' rights,
@@ -220,7 +257,9 @@ def search_teacher_law(law_name: str = "교원지위법", article_no: str = "") 
     # 1) 법령명으로 검색 → 현행 법령일련번호(MST)
     s = _law_get("lawSearch.do", {"target": "law", "query": law_name, "display": "5"})
     if not s:
-        return "법령 정보 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요." + DISCLAIMER
+        c = _cache_answer(law_name, article_no)   # 법제처 다운 → 캐시 폴백
+        return (c + GUARD + DISCLAIMER) if c else \
+            ("법령 정보 서비스에 연결하지 못했어요. 잠시 후 다시 시도해 주세요." + DISCLAIMER)
     laws = s.get("LawSearch", {}).get("law", [])
     if isinstance(laws, dict):
         laws = [laws]
@@ -237,6 +276,10 @@ def search_teacher_law(law_name: str = "교원지위법", article_no: str = "") 
     units = jo.get("조문단위", []) if isinstance(jo, dict) else []
     if isinstance(units, dict):
         units = [units]
+    if not units:
+        c = _cache_answer(law_name, article_no)   # 본문 조회 실패 → 캐시 폴백
+        if c:
+            return c + GUARD + DISCLAIMER
 
     header = f"📖 **{name}** (시행 {eff[:4]}-{eff[4:6]}-{eff[6:]}, 현행) — 법제처"
     if not article_no:
@@ -260,7 +303,36 @@ def search_teacher_law(law_name: str = "교원지위법", article_no: str = "") 
     if not hit:
         return header + f"\n\n{label}를 찾지 못했어요. article_no 없이 부르면 조문 목차를 볼 수 있어요." + DISCLAIMER
     text = _flatten_article(hit)
-    return header + f"\n\n**{label}({hit.get('조문제목','')})**\n\n" + text + DISCLAIMER
+    return header + f"\n\n**{label}({hit.get('조문제목','')})**\n\n" + text + GUARD + DISCLAIMER
+
+
+@mcp.tool(annotations={"title": "인용 법조항 진위 검증", "readOnlyHint": True})
+def verify_citation(law_name: str = "", article_no: str = "", claimed_content: str = "") -> str:
+    """Reverse-verify a law article that someone (a parent, complainant, etc.) cited
+    as grounds — does that article actually EXIST, and what does it really say? Checks
+    the current text live from 법제처. Use when a teacher wants to confirm "is this
+    cited article real / does it really say that?" — a defense against false citations.
+
+    Args:
+        law_name: The cited law name, e.g. "아동복지법".
+        article_no: The cited article number, e.g. "17" or "17의3".
+        claimed_content: What it is claimed to say (optional, for comparison).
+    """
+    if not (law_name.strip() and article_no.strip()):
+        return "검증할 법령명과 조 번호를 알려주세요. 예: 법령 '아동복지법', 조 '17'." + DISCLAIMER
+    real = search_teacher_law(law_name, article_no)   # 실제 조문 조회(캐시 폴백 포함)
+    if "연결하지 못했어요" in real:
+        return "🔎 지금은 인용을 검증할 수 없어요(법령 서비스 연결 실패). 잠시 후 다시 시도해 주세요." + DISCLAIMER
+    if ("찾지 못" in real) or ("캐시에 없어요" in real):
+        return (f"🔎 **인용 검증: {law_name} 제{article_no}조**\n\n"
+                "❌ **현행 법령에서 확인되지 않아요.** 존재하지 않는 조항이거나 법령명·조 번호가 부정확할 수 있어요. "
+                "상대가 근거로 든 조항이라면 **허위·과장 인용일 수 있으니 반드시 재확인**하세요.") + DISCLAIMER
+    banner = (f"🔎 **인용 검증: {law_name} 제{article_no}조** → ✅ **실제로 존재하는 조항이에요.** "
+              "아래 현행 원문과 상대의 주장을 대조하세요.\n")
+    if claimed_content.strip():
+        banner += (f"\n· 상대가 말한 내용: \"{claimed_content.strip()[:120]}\" → "
+                   "**아래 실제 조문과 범위·표현이 같은지 확인하세요.** 다르면 인용이 부정확한 거예요.\n")
+    return banner + "\n" + real
 
 
 # ─────────────────────────────────────────────────────────────
