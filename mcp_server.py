@@ -157,10 +157,10 @@ def defend_child_abuse(situation: str = "") -> str:
         "- 2023.9~2024.6 교육감 의견서 제출 553건 중 **약 70%가 '정당한 교육활동'** 입장.",
         "- 정당하다고 본 사안: **불기소 57.3% + 수사개시 전 종결 28.2% ≈ 85%가 교사에게 유리하게 종결.**",
         "",
-        "**4. 지금 할 일**",
-        "- 지도 상황을 **육하원칙으로 기록**(→ `draft_statement`)하고, 고시·학칙 근거를 함께 남기세요.",
-        "- 소속 교육지원청·교권보호센터(☎1395)에 알리고 **교육감 의견 제출**을 요청하세요.",
-        "- 교원배상책임보험(소송비 심급별 최대 660만원 선지원)·법률지원단 연결(→ `route_support`).",
+        "**4. 지금 할 일 (구체적으로)**",
+        "- 📝 **기록**: 지도한 **일시·장소·정확한 언행·이미 거친 단계**를 오늘 바로 적으세요. 자신에게 문자·이메일로 보내두면 '시각'이 증거로 남아요. 관련 문자·카톡 캡처, 목격한 동료·학생 진술도 확보. (진술서 초안 → `draft_statement`)",
+        "- ☎ **연락**: **교권보호 통합상담 ☎1395**(평일 09~18시 · 카카오톡 채널 '1395'는 상시)로 전화하면 **신고·심리상담·법률지원·교육감 의견 제출**을 한 번에 안내받아요. 마음이 힘들면 **교원치유·심리상담 ☎1899-9876**.",
+        "- ⚖️ **법률·비용**: 소속 시도교육청 **법률지원단**(무료 법률상담·소송 지원)과 **교원배상책임보험**(민사 소송비 심급별 최대 660만원·형사 최대 1,000만원 선지원)을 쓰세요. 연결 방법은 **1395로 문의**하거나 `route_support` 참고. (지원단 번호는 지역별이라 1395가 가장 빠른 입구예요.)",
     ]
     return "\n".join(out) + DISCLAIMER
 
@@ -546,8 +546,9 @@ _ACTION_RULES = [
       "정당한 분리에 불응해 방해하면 제16조로 교육활동 침해 조치 가능."]),
 ]
 
-_FOLLOWUP = ("\n📝 **필수 후속기록**: ①지도 일시·내용·거친 단계를 그날 바로 기록 "
-             "②학교장 보고 ③학부모 통보. (블로그·매뉴얼: 통보·보고 누락이 절차 위반·기소 사유가 됩니다.)")
+_FOLLOWUP = ("\n📝 **필수 후속기록 (이렇게)**: ①지도한 **일시·장소·언행·거친 단계**를 그날 바로 메모"
+             "(자신에게 문자·이메일로 남기면 '시각'이 증거로 남아요) ②학교장에게 **서면 보고** ③학부모에게 **통보**. "
+             "(통보·보고 누락이 절차 위반·기소 사유가 돼요.)")
 
 
 @mcp.tool(annotations={"title": "지도단계 적법성 체커", "readOnlyHint": True})
@@ -589,10 +590,10 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
                 out.append(f"거친 단계로 적어주신 것: {steps_taken}")
             else:
                 out.append("⚠️ 앞 단계를 거쳤는지 확인하세요 — 건너뛰면 정당성이 약해져요.")
+        out.append("\n**✅ 지금 이렇게 하세요 (단계별 실전 행동)**")
+        out += [f"- **{st}** — {_LADDER_HOWTO[st]}" for st in _LADDER[:idx + 1]]
         out.append("\n**요건·주의**")
         out += [f"- {x}" for x in reqs]
-        out.append("\n**🧩 실전: 이렇게 해보세요(단계별)**")
-        out += [f"- **{st}** — {_LADDER_HOWTO[st]}" for st in _LADDER[:idx + 1]]
     else:
         out.append("이 조치는 사전 정의 사례엔 없지만, 아래 사다리와 **관련 문서 근거**로 판단하세요.")
         out.append("생활지도 사다리: " + " → ".join(_LADDER))
@@ -601,13 +602,15 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
         out.append("\n**🧩 실전: 이렇게 해보세요(단계별)**")
         out += [f"- **{st}** — {_LADDER_HOWTO[st]}" for st in _LADDER]
 
-    # 어떤 조치든 관련 고시·교육청 매뉴얼 근거를 함께 검색해 붙인다(하드코딩 안 된 사례도 커버)
-    hits = _bm25(intended_action, topk=2)
-    if hits:
-        out.append("\n**📚 관련 근거(고시·교육청 매뉴얼)**")
-        for h in hits:
-            src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
-            out.append(f"〔{src}〕 {h['text'][:220]}")
+    # 하드코딩 규칙에 없는 조치일 때만 문서 근거를 붙인다
+    # (매칭된 규칙은 큐레이션 실전 단계로 충분 + 짧은 질의의 RAG 노이즈 방지)
+    if not rule:
+        hits = _bm25(intended_action, topk=2)
+        if hits:
+            out.append("\n**📚 관련 근거(고시·교육청 매뉴얼)**")
+            for h in hits:
+                src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
+                out.append(f"〔{src}〕 {h['text'][:220]}")
     out.append(_FOLLOWUP)
     out.append("\n✅ 이 사다리를 지킨 정당한 생활지도는 아동학대로 보지 않아요(초중등교육법 제20조의6, → `defend_child_abuse`).")
     return "\n".join(out) + DISCLAIMER
