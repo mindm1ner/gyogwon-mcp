@@ -25,6 +25,17 @@ PDF_SOURCES = [
      "https://www.nypi.re.kr/repository/bitstream/2022.oak/3424/1/41.pdf"),
     ("경남교육청 교육활동 보호 매뉴얼(2025)",
      "https://www.gne.go.kr/component/file/ND_fileDownload.do?q_fileSn=181533599&q_fileId=d331ec43-ea10-42b8-b191-f552e3735c19"),
+    # 추가 시도교육청 공식 매뉴얼(추출 검증됨) — 전국 커버리지
+    ("인천교육청 교육활동보호 매뉴얼(2026)",
+     "https://www.ice.go.kr/upload/ice/na/bbs_1711/2026/04/0ecf770cd5d1443260ec865a554c116b.pdf"),
+    ("충북교육청 교육활동 보호 매뉴얼(2026)",
+     "http://after.cbe.go.kr/upload/dept-26/na/bbs_2019/2026/03/050A2887-C564-5771-3A64-F9B972C08851.pdf"),
+    ("전북교육청 교육활동보호 매뉴얼(2025 개정)",
+     "https://www.jbe.go.kr/human/board/download.jbe?boardId=BBS_0000270&menuCd=DOM_000002709005000000&paging=ok&startPage=1&dataSid=793313&command=update&fileSid=637274"),
+    ("울산교육청 교육활동 보호 매뉴얼(2025)",
+     "https://use.go.kr/component/file/ND_fileDownload.do?q_fileSn=817416&q_fileId=46294c58-75bf-4332-93fe-c418ed04f624"),
+    ("광주교육청 교육활동 보호 매뉴얼(2026)",
+     "https://forteacher.gen.go.kr/xboard/board.php?mode=downpost&tbnum=7&sCat=0&page=1&keyset=&searchword=&number=1973&file_num=645"),
     ("학교 민원 응대 안내자료(교육부·경기, 2024)",
      "https://www.goe.go.kr/resource/old/BBSMSTR_000000000107/BBS_202410080511161001.pdf"),
 ]

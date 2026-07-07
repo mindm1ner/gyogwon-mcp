@@ -1,0 +1,30 @@
+<svg width="600" height="600" viewBox="0 0 600 600" xmlns="http://www.w3.org/2000/svg">
+  <!-- 배경 -->
+  <rect width="600" height="600" fill="#1B3658"/>
+  <rect x="28" y="28" width="544" height="544" rx="36" fill="none" stroke="#3A567C" stroke-width="3"/>
+
+  <!-- 연필(주황 몸통) -->
+  <polygon points="208,96 392,96 392,206 300,300 208,206" fill="#F4A84C"/>
+  <!-- 깎인 나무 -->
+  <polygon points="208,206 392,206 300,300" fill="#F9D29E"/>
+  <!-- 흑연 심 -->
+  <polygon points="274,262 326,262 300,300" fill="#263C60"/>
+  <!-- 밴드(페룰) -->
+  <rect x="208" y="120" width="184" height="20" fill="#EEF4F9"/>
+  <rect x="208" y="146" width="184" height="6" fill="#E4923A"/>
+
+  <!-- 십자(119 = 구조·도움) -->
+  <rect x="287" y="44" width="26" height="52" rx="5" fill="#F6F8FB"/>
+  <rect x="265" y="58" width="70" height="20" rx="5" fill="#F6F8FB"/>
+
+  <!-- 워드마크: 교권(흰) + 119(주황) -->
+  <text x="300" y="440" text-anchor="middle"
+        font-family="Malgun Gothic, 'Apple SD Gothic Neo', sans-serif"
+        font-size="120" font-weight="bold">
+    <tspan fill="#F6F8FB">교권</tspan><tspan fill="#F4A84C">119</tspan>
+  </text>
+
+  <!-- 태그라인 -->
+  <text x="300" y="527" text-anchor="middle"
+        font-family="Malgun Gothic, sans-serif" font-size="30" fill="#96AFCD">교육활동 보호 코파일럿</text>
+</svg>
