@@ -9,6 +9,9 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 # 출처 목록 — 최신(2025·2026) 우선. PDF는 (표시명, url), 고시는 법제처 행정규칙 API로 수집.
 PDF_SOURCES = [
+    # 교육부 공식 국가 표준 매뉴얼(최고 권위)
+    ("교육부 교육활동 보호 매뉴얼(2026 일부개정)",
+     "https://www.moe.go.kr/boardCnts/fileDown.do?m=0305&s=moe&fileSeq=45f76c653581704fce50f2d1b387f01a"),
     ("전남교육청 교육활동보호 매뉴얼(2026)",
      "https://www.jne.go.kr/upload/thsupport/na/bbs_339/ntt_5170000/doc_57389173-2d62-4eb9-a118-4547e343a6ab1772a7724b93123.pdf"),
     ("경기교육청 2026 교육활동 보호 종합대책",
@@ -20,10 +23,6 @@ PDF_SOURCES = [
      "https://www.ice.go.kr/upload/ice/na/bbs_2094/2026/05/e658af8a6a1e40cfa3537b2f2f41ea0f.pdf"),
     ("학생상담·생활지도 매뉴얼(교사용, NYPI)",
      "https://www.nypi.re.kr/repository/bitstream/2022.oak/3424/1/41.pdf"),
-    ("학생생활지도 실제편(대전동부교육청)",
-     "https://www.gjue.ac.kr/gjue/mayeye/FileDown.do?name=life_02.pdf"),
-    ("초등 생활지도의 원리(공주교대)",
-     "https://www.gjue.ac.kr/gjue/mayeye/FileDown.do?name=life_01.pdf"),
     ("경남교육청 교육활동 보호 매뉴얼(2025)",
      "https://www.gne.go.kr/component/file/ND_fileDownload.do?q_fileSn=181533599&q_fileId=d331ec43-ea10-42b8-b191-f552e3735c19"),
     ("학교 민원 응대 안내자료(교육부·경기, 2024)",
