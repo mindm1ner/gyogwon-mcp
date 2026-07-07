@@ -15,8 +15,15 @@ PDF_SOURCES = [
      "https://www.goe.go.kr/resource/goe/na/bbs_2675/2026/03/e75532f7-cc69-48b8-abb7-ea9143081ff9.pdf"),
     ("서울교육청 교육활동 보호 시행계획(2026)",
      "https://buseo.sen.go.kr/component/file/ND_fileDownload.do?q_fileSn=2143615&q_fileId=3d60e492-fa75-4315-997f-3bda2fe4c356"),
-    ("서울교육청 학생생활규정 길라잡이(2025)",
-     "https://buseo.sen.go.kr/component/file/ND_fileDownload.do?q_fileSn=2184051&q_fileId=22c46c8b-cd48-4ef6-8c97-402b9aa1bd63"),
+    # 실전 생활지도 자료(문제행동별 개입·상담기법·사례) — 추출 검증됨(KR 0.93~0.97)
+    ("문제행동별 개인상담 개입 지도서(17개 교육청 Wee센터, 2026)",
+     "https://www.ice.go.kr/upload/ice/na/bbs_2094/2026/05/e658af8a6a1e40cfa3537b2f2f41ea0f.pdf"),
+    ("학생상담·생활지도 매뉴얼(교사용, NYPI)",
+     "https://www.nypi.re.kr/repository/bitstream/2022.oak/3424/1/41.pdf"),
+    ("학생생활지도 실제편(대전동부교육청)",
+     "https://www.gjue.ac.kr/gjue/mayeye/FileDown.do?name=life_02.pdf"),
+    ("초등 생활지도의 원리(공주교대)",
+     "https://www.gjue.ac.kr/gjue/mayeye/FileDown.do?name=life_01.pdf"),
     ("경남교육청 교육활동 보호 매뉴얼(2025)",
      "https://www.gne.go.kr/component/file/ND_fileDownload.do?q_fileSn=181533599&q_fileId=d331ec43-ea10-42b8-b191-f552e3735c19"),
     ("학교 민원 응대 안내자료(교육부·경기, 2024)",
@@ -37,6 +44,9 @@ def chunks_from_text(text, source, page):
     """페이지 텍스트를 문장 경계에서 ~CHUNK_MAX 글자로 묶어 조각화."""
     text = re.sub(r"[ \t]+", " ", text).strip()
     if not text:
+        return []
+    # 폰트 깨짐 등 추출 실패 페이지 스킵(쓰레기 방지): 한글 비율이 너무 낮으면 버린다
+    if len(re.findall(r"[가-힣]", text)) < len(text) * 0.15:
         return []
     sents = re.split(r"(?<=[.。!?])\s+|\n", text)
     out, buf = [], ""
