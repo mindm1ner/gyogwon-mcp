@@ -86,8 +86,11 @@ def guide_response_flow(current_stage: str = "", infringement_type: str = "") ->
         out.append(f"**{title}**")
         out.append(body)
         out.append("")
-    out.append("진술서·경위서가 막히면 `draft_statement`, 아동학대 신고 협박을 받았다면 "
-               "`defend_child_abuse`, 지원기관 연결은 `route_support`를 불러 주세요.")
+    out.append("**단계별로 쓸 수 있는 문서 (→ `generate_document`로 초안 생성)**")
+    out.append("- 증거 수집: **목격자 진술서** · (분리 원하면) **즉시 분리 확인서**")
+    out.append("- 신고·심의: **사안 신고서** · **피해교원 의견서** · (아동학대로 몰리면) **소명서**")
+    out.append("- 사후 회복: **특별휴가 신청서** · **심리상담·치료비 신청서**")
+    out.append("아동학대 신고 협박을 받았다면 `defend_child_abuse`, 지원기관 연결은 `route_support`를 불러 주세요.")
     if infringement_type and ("폭행" in infringement_type or "성" in infringement_type or "협박" in infringement_type):
         out.insert(1, "**범죄행위(폭행·성범죄·협박)로 보여요 — 먼저 112에 신고하세요.**\n")
     return "\n".join(out) + _HOST_PROC + DISCLAIMER
@@ -915,7 +918,7 @@ def review_statement(document: str = "") -> str:
 # 서식 번호는 판본별로 달라 '문서 종류' 기준 설계. 고정서식=필드 재현형 / 무서식=문안 템플릿형.
 # ─────────────────────────────────────────────────────────────
 _DOC_ALIASES = {
-    "신고서": "신고서", "사안신고": "신고서", "침해신고": "신고서", "신고": "신고서",
+    "신고서": "신고서", "사안신고": "신고서", "침해신고": "신고서",
     "소명서": "소명서", "경위서": "소명서", "생활지도경위": "소명서", "아동학대소명": "소명서", "소명": "소명서",
     "의견서": "의견서", "교보위의견": "의견서", "서면의견": "의견서",
     "진술서": "진술서", "목격자": "진술서", "참고인": "진술서",
@@ -936,6 +939,25 @@ _DOC_MENU = (
     "⑧ **특별휴가** — 피해교원 특별휴가 신청서\n"
     "⑨ **치료비** — 심리상담·치료비 지원 신청서"
 )
+_DOC_TITLES = {
+    "신고서": "교육활동 침해 사안 신고서", "소명서": "아동학대 신고 대응 소명서",
+    "의견서": "피해교원 의견서(교권보호위)", "진술서": "목격자 진술서",
+    "분리확인서": "즉시 분리 의사 확인서", "민원지원": "특이민원 지원 요청 보고서",
+    "민원답변": "민원 답변/종결 통지", "특별휴가": "특별휴가 신청서",
+    "치료비": "심리상담·치료비 지원 신청서",
+}
+# 상황 서술 → 적합 문서 추천(구체적인 것 우선). 문서명이 아닌 '상황'을 말했을 때 매칭.
+_DOC_BY_SITUATION = [
+    (["아동학대", "학대로 신고", "학대 신고", "학대라고", "학대래"], "소명서"),
+    (["교보위", "교권보호위", "위원회", "심의"], "의견서"),
+    (["목격", "봤", "증인", "참고인"], "진술서"),
+    (["분리", "떼어", "떨어뜨"], "분리확인서"),
+    (["반복 민원", "계속 전화", "악성민원", "민원 반복", "3회"], "민원지원"),
+    (["답장", "회신", "답변서", "종결"], "민원답변"),
+    (["쉬고 싶", "휴가", "출근", "못 가겠"], "특별휴가"),
+    (["상담", "치료", "심리", "치유"], "치료비"),
+    (["폭언", "욕", "모욕", "협박", "폭행", "침해", "신고할", "신고하려", "신고당"], "신고서"),
+]
 
 
 @mcp.tool(annotations={"title": "교권 침해 대응 문서 생성기(공식 서식 9종)", "readOnlyHint": True})
@@ -948,6 +970,9 @@ def generate_document(doc_type: str = "", who: str = "", when: str = "", where: 
     교육감 의견 제출 가이드라인). Pick one of 9 types via doc_type; provided fields are
     filled in, the rest are left as 《채워 주세요》 placeholders. For a quick basic 경위서
     you may also use `draft_statement`.
+    If the teacher describes a SITUATION rather than naming a document (e.g. "아동학대로
+    신고당했는데 무슨 문서를 써야 해?"), pass that situation text as doc_type — the tool
+    recommends the fitting document and drafts it.
 
     Types (doc_type): 신고서 · 소명서 · 의견서 · 진술서 · 분리확인서 · 민원지원 · 민원답변 ·
     특별휴가 · 치료비. If doc_type is empty, returns the menu.
@@ -972,9 +997,16 @@ def generate_document(doc_type: str = "", who: str = "", when: str = "", where: 
 
     dk = doc_type.replace(" ", "")
     key = next((_DOC_ALIASES[k] for k in _DOC_ALIASES if k in dk), None) if dk else None
+    rec_note = ""
+    if not key and dk:
+        # 문서명이 아니라 '상황'을 말한 경우 → 상황에 맞는 문서를 추천해서 생성
+        key = next((doc for kws, doc in _DOC_BY_SITUATION if any(w in doc_type for w in kws)), None)
+        if key:
+            rec_note = f"**[추천 문서]** 말씀하신 상황엔 **{_DOC_TITLES[key]}**가 적합해요. 아래 초안을 참고하세요.\n\n"
     if not key:
-        return ("어떤 문서를 만들까요? 유형을 골라 주세요:\n\n" + _DOC_MENU +
-                "\n\n예: '아동학대 소명서 써줘' · '침해 사안 신고서' · '목격자 진술서'") + DISCLAIMER
+        return ("어떤 문서를 만들까요? 상황을 말해 주시면 맞는 문서를 추천해 드려요.\n\n" + _DOC_MENU +
+                "\n\n💡 '아동학대로 신고당했는데 무슨 문서 써야 해?'처럼 상황을 말해도 돼요.\n"
+                "예: '아동학대 소명서 써줘' · '침해 사안 신고서' · '목격자 진술서'") + DISCLAIMER
 
     ot = f"{chk(offender_type,'학생')}학생 {chk(offender_type,'보호자')}보호자 {chk(offender_type,'기타')}기타"
     tips = ""
@@ -1127,7 +1159,7 @@ def generate_document(doc_type: str = "", who: str = "", when: str = "", where: 
         tips = ("\n**근거·한도**: 교원지위법 제20조(치유 지원) — 표준약관 기준 심리상담 최대 15회·치료비 최대 200만원 "
                 "수준. 비용은 원칙적으로 가해 보호자 부담. 세부는 소속 교육청·공제회 약관에 따라 달라요.")
 
-    return "```\n" + body + "\n```" + tips + _HOST_GEN + DISCLAIMER
+    return rec_note + "```\n" + body + "\n```" + tips + _HOST_GEN + DISCLAIMER
 
 
 if __name__ == "__main__":
