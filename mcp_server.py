@@ -595,47 +595,52 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
         ) + DISCLAIMER
     a = intended_action
     rule = next((r for r in _ACTION_RULES if any(k in a for k in r[0])), None)
-    out = [f"**'{intended_action[:80]}' — 적법성 체크**", ""]
+    out = [f"**'{intended_action[:80]}' — 생활지도 적법성 판단 재료**", ""]
+
+    # [1] 빠른 판정 (맨 앞 = LLM 요약에도 생존)
     if rule:
         _, idx, verdict, reqs = rule
-        out.append(verdict)
-        prior = _LADDER[:idx]
-        if prior:
-            out.append(f"\n**앞 단계(먼저 거쳐야 함)**: {' → '.join(prior)}")
-            out.append("**왜 순서대로 해야 하나요**: 앞 단계를 건너뛰고 센 조치를 하면 "
-                       "'과했다 = 정서학대'로 몰려 아동학대 면책(초·중등교육법 제20조의6)을 잃을 수 있어요. "
-                       "순서를 밟는 것 자체가 곧 방어예요.")
-            if steps_taken.strip():
-                out.append(f"거친 단계로 적어주신 것: {steps_taken}")
-            else:
-                out.append("앞 단계를 거쳤는지 확인하세요 — 건너뛰면 정당성이 약해져요.")
-        out.append("\n**지금 이렇게 하세요 (단계별 실전 행동)**")
-        out += [f"- **{st}** — {_LADDER_HOWTO[st]}" for st in _LADDER[:idx + 1]]
-        out.append("\n**요건·주의**")
-        out += [f"- {x}" for x in reqs]
+        out.append("**[빠른 판정]** " + verdict)
     else:
-        out.append("사전 정의된 사례엔 없어요 — 아래 **원칙으로 판단**하고, 애매하면 더 가벼운 대안을 택하거나 1395·매뉴얼로 확인하세요.")
-        out.append("**생활지도 사다리**: " + " → ".join(_LADDER) + " — 낮은 단계부터, 안 되면 한 단계씩.")
-        out.append("**학대 3-체크 (하나라도 '예'면 위험)**: "
-                   "①신체적 고통을 주나요?(장시간 기립·과도한 신체부담 → 신체학대) "
-                   "②공개적으로 창피를 주나요?(→ 정서학대) "
-                   "③목적에 비해 과한가요?(→ 비례원칙 위반).")
-        out.append("셋 다 '아니오'이고 학칙 근거가 있으며 최소한도라면, 정당한 생활지도로 볼 여지가 커요"
-                   "(초·중등교육법 제20조의6 — 정당한 지도는 아동학대로 보지 않음).")
-        out.append("\n**실전: 이렇게 해보세요(단계별)**")
-        out += [f"- **{st}** — {_LADDER_HOWTO[st]}" for st in _LADDER]
+        idx, reqs = None, []
+        out.append("**[빠른 판정]** 사전 정의된 사례엔 없어요 — 아래 프레임워크로 판단하세요"
+                   "(확정 답변 아님. 애매하면 더 가벼운 대안).")
 
-    # 하드코딩 규칙에 없는 조치일 때만 문서 근거를 붙인다
-    # (매칭된 규칙은 큐레이션 실전 단계로 충분 + 짧은 질의의 RAG 노이즈 방지)
-    if not rule:
-        hits = _bm25(intended_action, topk=2)
-        if hits:
-            out.append("\n**관련 근거(고시·교육청 매뉴얼)**")
-            for h in hits:
-                src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
-                out.append(f"〔{src}〕 {h['text'][:220]}")
+    # [2] 근거 원문 — 출처 강제(고시 해설서·매뉴얼)
+    hits = _bm25(intended_action, topk=2)
+    if hits:
+        out.append("\n**[근거 — 고시 해설서·교육청 매뉴얼 원문]**")
+        for h in hits:
+            src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
+            out.append(f"▷ 〔{src}〕 {h['text'][:200]}")
+
+    # [3] 판단 프레임워크 — 모든 조치 공통(미지 입력 일반화의 핵심)
+    out.append("\n**[판단 프레임워크 — 어떤 조치든 이 원칙으로]**")
+    out.append("① 생활지도 사다리(낮은 단계부터 = 비례원칙, 건너뛰면 정당성↓·정서학대 소지):")
+    out += [f"   - **{st}** {_LADDER_HOWTO[st]}" for st in _LADDER]
+    out.append("② 학대 3-체크(하나라도 '예'면 위험): ㉠신체적 고통?(장시간 기립 등 → 신체학대) "
+               "㉡공개적 창피?(→ 정서학대) ㉢목적 대비 과도?(→ 비례 위반). "
+               "셋 다 '아니오' + 학칙 근거 + 최소한도면 정당한 지도로 볼 여지 큼(초·중등교육법 제20조의6).")
+    out.append("③ 명백 금지: 신체적 고통을 주는 체벌·물리력(어떤 경우에도 불가).")
+
+    # [4] 매칭된 기준의 요건(있을 때만)
+    if rule and reqs:
+        out.append("\n**[이 조치의 요건·주의]**")
+        out += [f"- {x}" for x in reqs]
+        prior = _LADDER[:idx] if idx else []
+        if prior:
+            gone = f" (적어주신 거친 단계: {steps_taken})" if steps_taken.strip() else " (거친 단계 확인 필요)"
+            out.append(f"- 앞 단계 {' → '.join(prior)}를 먼저 거쳐야 함{gone}.")
+
+    # [5] 호스트 AI 판단 지침 + 보수적 폴백 (미지 입력 대비의 핵심)
+    out.append("\n**[호스트 AI는 위 근거·프레임워크로 판단해 안내하세요]**")
+    out.append("이 조치가 ①사다리 몇 단계이고 거친 단계가 충분한지 ②학대 3-체크에 걸리는지 "
+               "③최소한도·학칙 근거인지를 짚어, 교사가 지금 할 일을 안내하세요.")
+    out.append("- **확정하기 어렵거나 범위 밖이면 '허용'으로 기울지 말고 '추가 확인 필요'로 안내**하고, "
+               "더 가벼운 대안 + 1395·생활지도 고시 확인을 권하세요. **단정·창작 금지.**")
+    out.append("- 조치가 모호하면(얼마나 오래·공개적인지·벌 목적인지) 교사에게 되물어 명확히 하세요.")
+
     out.append(_FOLLOWUP)
-    out.append("\n이 사다리를 지킨 정당한 생활지도는 아동학대로 보지 않아요(초중등교육법 제20조의6, → `defend_child_abuse`).")
     return "\n".join(out) + DISCLAIMER
 
 
