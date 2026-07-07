@@ -9,6 +9,11 @@ UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64)"
 
 # 출처 목록 — 최신(2025·2026) 우선. PDF는 (표시명, url), 고시는 법제처 행정규칙 API로 수집.
 PDF_SOURCES = [
+    # ⭐생활지도 '방법' 핵심 — 고시 해설서(조언·상담·주의·훈육·훈계 단계별 예시) + 유형별 실전 개입
+    ("교원의 학생생활지도에 관한 고시 해설서(교육부, 2025 개정)",
+     "https://www.stopbullying.re.kr/fileDownload?titleId=572&fileId=1&fileDownType=C&paramMenuId=MENU00424"),
+    ("위기사안별 개인상담 개입 지도서(초등, 17개 교육청 Wee, 2024)",
+     "https://www.wee.go.kr/fileDownload?fileId=6H3ZCYQ94L&fileSn=1&fileDownType=C&menuKey=Nkf0nC3AjF&bbsId=BOARD00015"),
     # 교육부 공식 국가 표준 매뉴얼(최고 권위)
     ("교육부 교육활동 보호 매뉴얼(2026 일부개정)",
      "https://www.moe.go.kr/boardCnts/fileDown.do?m=0305&s=moe&fileSeq=45f76c653581704fce50f2d1b387f01a"),
@@ -21,8 +26,6 @@ PDF_SOURCES = [
     # 실전 생활지도 자료(문제행동별 개입·상담기법·사례) — 추출 검증됨(KR 0.93~0.97)
     ("문제행동별 개인상담 개입 지도서(17개 교육청 Wee센터, 2026)",
      "https://www.ice.go.kr/upload/ice/na/bbs_2094/2026/05/e658af8a6a1e40cfa3537b2f2f41ea0f.pdf"),
-    ("학생상담·생활지도 매뉴얼(교사용, NYPI)",
-     "https://www.nypi.re.kr/repository/bitstream/2022.oak/3424/1/41.pdf"),
     ("경남교육청 교육활동 보호 매뉴얼(2025)",
      "https://www.gne.go.kr/component/file/ND_fileDownload.do?q_fileSn=181533599&q_fileId=d331ec43-ea10-42b8-b191-f552e3735c19"),
     # 추가 시도교육청 공식 매뉴얼(추출 검증됨) — 전국 커버리지
