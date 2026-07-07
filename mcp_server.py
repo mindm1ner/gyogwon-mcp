@@ -270,19 +270,63 @@ def _cache_answer(law_name, article_no):
     return head + f"\n\n**제{key}조({a.get('title','')})**\n\n" + a.get("text", "")
 
 
-@mcp.tool(annotations={"title": "교권 법령 조항 조회", "readOnlyHint": True})
+def _admrul_article(query: str, article_no: str = ""):
+    """행정규칙(고시·훈령·예규) 조문을 법제처에서 라이브 조회. 성공 시 (header, text), 실패 시 None."""
+    s = _law_get("lawSearch.do", {"target": "admrul", "query": query, "display": "5"})
+    if not s:
+        return None
+    rows = s.get("AdmRulSearch", {}).get("admrul", [])
+    if isinstance(rows, dict):
+        rows = [rows]
+    if not rows:
+        return None
+    qn = query.replace(" ", "")
+    hit = next((x for x in rows if qn in (x.get("행정규칙명") or "").replace(" ", "")), rows[0])
+    b = _law_get("lawService.do", {"target": "admrul", "ID": hit.get("행정규칙일련번호")})
+    root = (b or {}).get("AdmRulService", {})
+    units = [u for u in root.get("조문내용", []) if isinstance(u, str)]
+    if not units:
+        return None
+    gi = root.get("행정규칙기본정보", {})
+    name = (gi.get("행정규칙명") or hit.get("행정규칙명", query)).strip()
+    eff = gi.get("시행일자", "") or ""
+    header = f"**{name}**" + (f" (시행 {eff[:4]}-{eff[4:6]}-{eff[6:]}, 현행)" if len(eff) == 8 else "") + " — 법제처"
+    if not article_no:
+        titles = [u.split(")")[0] + ")" for u in units if u.startswith("제") and "조(" in u]
+        return header, "조회할 조를 알려주세요(예: 제13조). 주요 조문:\n" + "\n".join(titles[:40])
+    want = article_no.replace("제", "").replace("조", "").strip()
+    base, _, branch = want.partition("의")
+    base, branch = base.strip(), branch.strip()
+    for u in units:
+        if branch:
+            if u.startswith(f"제{base}조의{branch}"):
+                return header, u
+        elif re.match(rf"제{base}조(?![0-9의])", u):
+            return header, u
+    return header, f"제{article_no}에 해당하는 조문을 찾지 못했어요. 조 번호를 확인해 주세요."
+
+
+@mcp.tool(annotations={"title": "교권 법령·고시 조항 조회", "readOnlyHint": True})
 def search_teacher_law(law_name: str = "교원지위법", article_no: str = "") -> str:
-    """Look up a current Korean statute article relevant to teachers' rights,
-    live from the government legal database (법제처). Returns the exact,
-    up-to-date article text as legal grounds.
+    """Look up a current Korean statute OR administrative-rule article relevant to
+    teachers' rights, live from the government legal database (법제처). Returns the
+    exact, up-to-date article text as legal grounds. Also covers 고시·훈령·예규 such
+    as 「교원의 학생생활지도에 관한 고시」 — just pass the 고시 name as law_name.
     USE THIS when the user needs the precise legal wording of an article. For
     "how should I guide a student" use `guide_student_guidance`; to check whether
     a specific intended measure is lawful use `check_guidance_legality`.
 
     Args:
-        law_name: Law name, e.g. "교원지위법", "아동학대처벌법", "초중등교육법".
-        article_no: Article number to fetch, e.g. "19". If empty, returns the table of contents.
+        law_name: Law/rule name, e.g. "교원지위법", "아동학대처벌법", "초중등교육법",
+                  "교원의 학생생활지도에 관한 고시".
+        article_no: Article number to fetch, e.g. "19", "20의6", "13". If empty, returns the table of contents.
     """
+    # 고시·훈령·예규 등 행정규칙이면 admrul로 라이브 조회
+    if any(h in law_name for h in ("고시", "훈령", "예규", "지침", "규정")):
+        res = _admrul_article(law_name, article_no)
+        if res:
+            return res[0] + "\n\n" + res[1] + GUARD + DISCLAIMER
+
     # 1) 법령명으로 검색 → 현행 법령일련번호(MST)
     s = _law_get("lawSearch.do", {"target": "law", "query": law_name, "display": "5"})
     if not s:
@@ -660,7 +704,7 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
                "짚어 **판단과 지금 할 일을 안내**하세요. (질문만 하지 말고 반드시 판단을 먼저 줄 것.)")
     out.append("- 교사가 밟아야 할 단계는 위 **[지금 이렇게 하세요]의 방법을 그대로** 전하세요(단계 이름만 나열하지 말 것).")
     out.append("- **답변에 근거 조항(예: 「학생생활지도 고시」 제13조·「초·중등교육법」 제20조의6)을 함께 밝히세요** — 법 근거가 곧 신뢰예요.")
-    out.append("- 조항의 **정확한 현행 원문**이 필요하면 `search_teacher_law`(법령)·`verify_citation`으로 "
+    out.append("- 조항의 **정확한 현행 원문**이 필요하면 `search_teacher_law`(법령·고시 모두)·`verify_citation`으로 "
                "법제처에서 확인해 제시하세요 — 하드코딩 번호가 아니라 실제 현행 조문으로.")
     out.append("- **확정하기 어렵거나 범위 밖이면 '허용'으로 기울지 말고 '추가 확인 필요'로 안내**하고, "
                "더 가벼운 대안 + 1395·생활지도 고시 확인을 권하세요. **단정·창작 금지.**")
