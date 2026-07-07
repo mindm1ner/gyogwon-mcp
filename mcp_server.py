@@ -29,6 +29,17 @@ LAW_BASE = "https://www.law.go.kr/DRF"
 DISCLAIMER = ("\n\n---\n본 안내는 정보 제공용이며 법률 자문이 아니에요. 개별 사안은 "
              "교권보호센터(1395)·시도교육청 법률지원단·변호사 상담을 함께 받으세요.")
 
+# 유형별 '호스트 AI 안내' — 공통 원칙(근거 내 판단·보수적 폴백·창작 금지)을 LLM에 지시.
+# (정서 도구 emotional_support는 따뜻함 보존을 위해 예외, 조회형은 GUARD가 대신함)
+_HOST_PROC = ("\n\n**[호스트 AI 안내]** 교사의 현재 상황·단계에 맞춰 안내하세요. 확실치 않거나 범위 밖이면 "
+              "'추가 확인 필요'로 안내하고 1395·교육청 확인을 권하세요. 없는 내용은 지어내지 마세요.")
+_HOST_GEN = ("\n\n**[호스트 AI 안내]** 빈칸·사실관계는 교사가 채우게 하고 내용을 지어내지 마세요. "
+             "확정하기 어려운 부분은 교사에게 확인을 요청하세요.")
+_HOST_ROUTE = ("\n\n**[호스트 AI 안내]** 상황에 맞는 기관을 안내하되 애매하면 1395로 연결하세요. "
+               "없는 기관·번호는 만들지 마세요.")
+_HOST_DEFEND = ("\n\n**[호스트 AI 안내]** 위 방어 논리를 교사 상황에 맞춰 전하되, 법 조항·통계·연락처는 "
+                "위 근거 그대로 쓰고 지어내지 마세요.")
+
 
 # ─────────────────────────────────────────────────────────────
 # 도구 1) 침해 대응 6단계 플로우
@@ -78,7 +89,7 @@ def guide_response_flow(current_stage: str = "", infringement_type: str = "") ->
                "`defend_child_abuse`, 지원기관 연결은 `route_support`를 불러 주세요.")
     if infringement_type and ("폭행" in infringement_type or "성" in infringement_type or "협박" in infringement_type):
         out.insert(1, "**범죄행위(폭행·성범죄·협박)로 보여요 — 먼저 112에 신고하세요.**\n")
-    return "\n".join(out) + DISCLAIMER
+    return "\n".join(out) + _HOST_PROC + DISCLAIMER
 
 
 # ─────────────────────────────────────────────────────────────
@@ -134,7 +145,7 @@ def draft_statement(
         "- 침해 언행은 **들은 그대로 따옴표로 인용**하세요.\n"
         "- 정당한 교육활동(무엇을 지도하던 중이었는지)을 (1)에 분명히 적으세요 — 정당성의 근거가 됩니다."
     )
-    return "```\n" + body + "\n```" + tips + DISCLAIMER
+    return "```\n" + body + "\n```" + tips + _HOST_GEN + DISCLAIMER
 
 
 # ─────────────────────────────────────────────────────────────
@@ -175,7 +186,7 @@ def defend_child_abuse(situation: str = "") -> str:
         "- **연락**: **교권보호 통합상담 1395**(평일 09~18시 · 카카오톡 채널 '1395'는 상시)로 전화하면 **신고·심리상담·법률지원·교육감 의견 제출**을 한 번에 안내받아요. 마음이 힘들면 **교원치유·심리상담 1899-9876**.",
         "- **법률·비용**: 소속 시도교육청 **법률지원단**(무료 법률상담·소송 지원)과 **교원배상책임보험**(민사 소송비 심급별 최대 660만원·형사 최대 1,000만원 선지원)을 쓰세요. 연결 방법은 **1395로 문의**하거나 `route_support` 참고. (지원단 번호는 지역별이라 1395가 가장 빠른 입구예요.)",
     ]
-    return "\n".join(out) + DISCLAIMER
+    return "\n".join(out) + _HOST_DEFEND + DISCLAIMER
 
 
 # ─────────────────────────────────────────────────────────────
@@ -392,7 +403,7 @@ def route_support(situation_type: str = "") -> str:
     out = [f"**'{key}' 상황 — 연결할 지원기관**", ""]
     for name, what, contact in rows:
         out.append(f"- **{name}** — {what} · {contact}")
-    return "\n".join(out) + DISCLAIMER
+    return "\n".join(out) + _HOST_ROUTE + DISCLAIMER
 
 
 # ─────────────────────────────────────────────────────────────
@@ -422,7 +433,7 @@ def guide_complaint_response(situation: str = "") -> str:
         "\"민원은 학교 민원대응팀을 통해 정식으로 접수·답변드립니다. 욕설·협박이 계속되면 통화를 종료하겠습니다. "
         "교육활동을 침해하는 내용은 관련 절차에 따라 처리됩니다.\"",
     ]
-    return "\n".join(out) + DISCLAIMER
+    return "\n".join(out) + _HOST_PROC + DISCLAIMER
 
 
 # ─────────────────────────────────────────────────────────────
@@ -505,7 +516,8 @@ def guide_student_guidance(situation: str = "") -> str:
         src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
         out.append(f"**〔{src}〕**\n{h['text']}")
         out.append("")
-    out.append("↑ 위 근거로 단계적 지도(조언→주의→훈육→훈계→분리 등)와 정당한 범위를 안내하세요. "
+    out.append("**[호스트 AI 안내]** 위 근거 안에서만 단계적 지도(조언→주의→훈육→훈계→분리 등)와 정당한 범위를 안내하세요. "
+               "근거 밖 내용은 창작하지 말고, 근거가 빈약하면 매뉴얼·1395 확인을 권하세요. "
                "정당한 생활지도는 아동학대로 보지 않아요(→ `defend_child_abuse`).")
     return "\n".join(out) + DISCLAIMER
 
@@ -767,7 +779,7 @@ def safe_parent_message(situation: str = "", parent_message: str = "", teacher_d
         for h in refs:
             src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
             out.append(f"〔{src}〕 {h['text'][:180]}")
-    return "\n".join(out) + DISCLAIMER
+    return "\n".join(out) + _HOST_GEN + DISCLAIMER
 
 
 # ─────────────────────────────────────────────────────────────
@@ -885,7 +897,7 @@ def review_statement(document: str = "") -> str:
         out.append("- 필수 요소는 갖췄어요. 침해 언행이 **구체적 인용**인지, 전후 맥락이 **객관적 서술**인지 다시 보세요.")
     out.append("- 감정·과실 인정·직무이탈 표현은 빼고, **사실·시간 순서·증거 목록** 중심으로.")
     out.append("- 초안부터 다시 잡으려면 `draft_statement`를 쓰세요.")
-    return "\n".join(out) + DISCLAIMER
+    return "\n".join(out) + _HOST_GEN + DISCLAIMER
 
 
 if __name__ == "__main__":
