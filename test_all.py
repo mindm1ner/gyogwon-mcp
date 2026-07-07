@@ -37,6 +37,11 @@ CASES = [
     ("guide_student_guidance", {"situation": LONG}, "초장문"),
     ("review_statement", {"document": ""}, "빈입력"),
     ("review_statement", {"document": "학생이 수업 중 욕을 했다. 증거는 녹음이 있다."}, "정상"),
+    ("generate_document", {"doc_type": ""}, "메뉴"),
+    ("generate_document", {"doc_type": "소명서", "teacher": "김교사", "what": "자는 학생 깨움"}, "소명서"),
+    ("generate_document", {"doc_type": "신고서", "who": "학부모", "offender_type": "보호자"}, "신고서"),
+    ("generate_document", {"doc_type": "민원답변", "who": "학부모"}, "민원답변"),
+    ("generate_document", {"doc_type": "알수없는유형"}, "미매칭→메뉴"),
 ]
 
 
