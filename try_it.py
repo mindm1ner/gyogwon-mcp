@@ -27,6 +27,7 @@ TOOLS = [
     ("route_support", "📋 지원기관 연결", [("situation_type", "유형(폭행/성범죄/아동학대신고/악성민원/심리소진/법률)")]),
     ("guide_complaint_response", "📋 악성민원 응대", [("situation", "상황(선택)")]),
     ("guide_student_guidance", "📋 생활지도 근거 검색", [("situation", "상황(예: 수업 중 자는 학생)")]),
+    ("review_statement", "📋 진술서·경위서 검토", [("document", "검토할 진술서·경위서 내용 붙여넣기")]),
 ]
 
 

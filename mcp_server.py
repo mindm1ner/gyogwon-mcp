@@ -487,7 +487,7 @@ def guide_student_guidance(situation: str = "") -> str:
     hits = _bm25(situation, topk=4)
     if not hits:
         return ("관련 문서 조각을 찾지 못했어요. 상황·학생 행동·이미 시도한 지도를 더 구체적으로 적어 주세요.") + DISCLAIMER
-    out = [f"📚 **'{situation}' — 관련 근거(교육부·교육청 매뉴얼·생활지도 고시)**", ""]
+    out = [f"📚 **'{situation[:80]}' — 관련 근거(교육부·교육청 매뉴얼·생활지도 고시)**", ""]
     for h in hits:
         src = h["source"] + (f" p.{h['page']}" if h.get("page") else "")
         out.append(f"**〔{src}〕**\n{h['text']}")
@@ -569,7 +569,7 @@ def check_guidance_legality(intended_action: str = "", steps_taken: str = "") ->
         ) + DISCLAIMER
     a = intended_action
     rule = next((r for r in _ACTION_RULES if any(k in a for k in r[0])), None)
-    out = [f"🧭 **'{intended_action}' — 적법성 체크**", ""]
+    out = [f"🧭 **'{intended_action[:80]}' — 적법성 체크**", ""]
     if rule:
         _, idx, verdict, reqs = rule
         out.append(verdict)
@@ -782,6 +782,65 @@ def emotional_support(feeling: str = "") -> str:
         )
     return ("지금 마음이 어떠세요? 무슨 일이 있었는지 편하게 말씀해 주세요. "
             "천천히 들을게요. 혼자 감당하지 않으셔도 돼요.")
+
+
+# ─────────────────────────────────────────────────────────────
+# 도구 12) 진술서·경위서 검토 (생성 도구 draft_statement의 짝)
+# ─────────────────────────────────────────────────────────────
+# (필수 요소, 감지 키워드) — 하나라도 있으면 '있음'으로 본다
+_REVIEW_ELEMENTS = [
+    ("일시(언제)", ["일시", "시경", "교시", "오전", "오후", "년", "월", "일"]),
+    ("장소(어디서)", ["장소", "교실", "학교", "복도", "운동장", "앞", "실에서", "실 "]),
+    ("관련자(누가)", ["학생", "학부모", "보호자", "가해", "○○", "피해교원", "본인"]),
+    ("침해 언행(무엇을)", ["말", "행동", "욕", "라고", "했다", "하였", "고함", "폭언"]),
+    ("전후 맥락·정당한 지도", ["지도", "수업", "훈육", "주의", "제지", "훈계", "중이", "요구"]),
+    ("증거 자료", ["증거", "녹음", "캡처", "사진", "동영상", "목격", "진단서", "cctv", "CCTV"]),
+]
+
+
+@mcp.tool(annotations={"title": "진술서·경위서 검토", "readOnlyHint": True})
+def review_statement(document: str = "") -> str:
+    """Review a teacher's already-written incident statement (진술서/경위서/의견서):
+    flag missing required elements (six-W, context, evidence) and self-incriminating
+    or out-of-scope phrasing, and suggest fixes. The review counterpart of
+    `draft_statement`. Use when a teacher has a draft and asks "is anything missing?".
+
+    Args:
+        document: The statement text to review.
+    """
+    if not document.strip():
+        return ("검토할 진술서·경위서 내용을 붙여넣어 주세요. (초안이 필요하면 `draft_statement`로 만들 수 있어요.)") + DISCLAIMER
+    d = document
+    has_digit = any(ch.isdigit() for ch in d)
+    out = ["📝 **진술서·경위서 검토**", "", "**1. 필수 요소 점검**"]
+    missing = []
+    for name, kws in _REVIEW_ELEMENTS:
+        present = any(k in d for k in kws) or (name.startswith("일시") and has_digit)
+        out.append(f"- {'✅' if present else '⚠️'} {name}{'' if present else ' — 빠졌어요, 채우면 좋아요'}")
+        if not present:
+            missing.append(name)
+
+    out.append("\n**2. 위험 표현 점검**")
+    flags = []
+    if any(k in d for k in _DRAFT_EMOTION):
+        flags.append("교사 감정 토로(\"힘들다·감당 안 된다\") → 공격 대상. 빼기")
+    if any(k in d for k in _DRAFT_FAULT):
+        flags.append("성급한 과실 인정(\"제 잘못·죄송\") → 사실 확인 전 인정은 불리. 유감 표현으로")
+    if any(k in d for k in _DRAFT_ESCAPE):
+        flags.append("직무 회피성(\"못 하겠다·포기\") → 직무유기로 읽힘")
+    if any(k in d for k in _DRAFT_PROMISE):
+        flags.append("과한 약속(\"해드릴게요·책임지겠다\") → 화근")
+    out += [f"- 🚫 {f}" for f in flags] if flags else ["- 큰 위험 표현은 안 보여요."]
+
+    out.append("\n**3. 보완 제안**")
+    if missing:
+        out.append(f"- 빠진 요소({', '.join(missing)})를 채우세요. 특히 **침해 언행은 들은 그대로 인용**, "
+                   "**정당한 교육활동(무엇을 지도하던 중이었는지)**을 분명히.")
+    else:
+        out.append("- 필수 요소는 갖췄어요. 침해 언행이 **구체적 인용**인지, 전후 맥락이 **객관적 서술**인지 다시 보세요.")
+    out.append("- 감정·과실 인정·직무이탈 표현은 빼고, **사실·시간 순서·증거 목록** 중심으로.")
+    out.append("- 초안부터 다시 잡으려면 `draft_statement`를 쓰세요.")
+    return "\n".join(out) + DISCLAIMER
 
 
 if __name__ == "__main__":
