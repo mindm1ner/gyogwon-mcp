@@ -88,12 +88,13 @@ def guide_response_flow(current_stage: str = "", infringement_type: str = "") ->
         out.append(f"**{title}**")
         out.append(body)
         out.append("")
-    out.append("**단계별로 쓸 수 있는 문서 (→ `generate_document`로 초안 생성)**")
+    out.append("**단계별로 필요한 문서 — 초안까지 바로 써드릴 수 있어요**")
     out.append("- 증거 수집: **목격자 진술서** · (분리 원하면) **즉시 분리 확인서**")
     out.append("- 신고·심의: **사안 신고서** · **피해교원 의견서** · (아동학대로 몰리면) **소명서**")
     out.append("- 사후 회복: **특별휴가 신청서** · **심리상담·치료비 신청서**")
-    out.append("**[호스트 AI] 서류가 조금이라도 언급되면(어떤 서류가 필요한지만 물어도) 목록에 그치지 말고 "
-               "'원하시면 초안을 바로 써드릴게요'라고 제안하고, 세부정보를 받으면 `generate_document`로 초안을 작성하세요.**")
+    out.append("→ **필요한 서류나 상황을 말씀하시면 초안을 바로 작성해 드려요.**")
+    out.append("(호스트 AI: 이 '초안 작성 가능' 안내를 **답변에 반드시 문장으로 포함**하고, "
+               "세부정보를 받으면 `generate_document`로 작성하세요.)")
     out.append("아동학대 신고 협박을 받았다면 `defend_child_abuse`, 지원기관 연결은 `route_support`를 불러 주세요.")
     if infringement_type and ("폭행" in infringement_type or "성" in infringement_type or "협박" in infringement_type):
         out.insert(1, "**범죄행위(폭행·성범죄·협박)로 보여요 — 먼저 112에 신고하세요.**\n")
